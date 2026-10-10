@@ -1,61 +1,54 @@
-# Security design and status
+# Security policy
 
-**Crypta has an experimental Phase 5 native app, vault engine, and domain models. No implementation has been independently audited or released. Do not entrust it with real secrets.** This document distinguishes planned safeguards from verified software behavior.
-
-## Protection status
-
-| Area | Status |
-| --- | --- |
-| Portable key hierarchy, bounded v1 format, threat model | Implemented experimental binary format and strict schema-2 models with validated schema-1 migration |
-| Argon2id / XChaCha20 adapter and secure buffers | Implemented; upstream vectors pass |
-| Authentication, malformed-file rejection, atomic persistence | Implemented and tested; see Phase 2 evidence |
-| Native UI, explicit encrypted save, manual lock | Implemented; presentation tests and sandboxed UI smoke checks |
-| Clipboard expiration, inactivity/sleep/session lock, passphrase-change UI | Implemented; injected-clock/state tests, private pasteboard integration, real-engine rewrap tests |
-| Dependency artifact verification and minimum-OS runtime test | Pinned hash/runtime/arm64 metadata verified; provenance and macOS 14 runtime test pending |
-| Independent security review, signed/notarized release | Pending |
-
-Detailed test outcomes and limitations: [Phase 2 results](Documentation/PHASE_2_RESULTS.md), [Phase 3 results](Documentation/PHASE_3_RESULTS.md), [Phase 4 results](Documentation/PHASE_4_RESULTS.md), and [Phase 5 results](Documentation/PHASE_5_RESULTS.md).
-
-The public engine rejects unsupported schemas/types/fields before unlocking. All entry values, including plain-display custom fields, remain inside the authenticated ciphertext. Returned model snapshots contain plaintext and must not be logged or retained after lock. Revision checks prevent stale in-session edits; they do not establish freshness against replay of an older valid vault file.
-
-## Memory and diagnostics
-
-Keep keys in explicitly owned guarded buffers; check allocations and memory-locking outcomes, and use libsodium wiping/free functions at the end of ownership. Treat failed page locking as a visible diagnostic capability limitation without logging sensitive data; it does not change the encryption algorithm. Do not retain master passphrase or KEK after the operation that needs them. See [libsodium secure memory documentation](https://libsodium.gitbook.io/doc/memory_management).
-
-Swift `String`, `Data`, copy-on-write storage, text controls, decoding, undo stacks, task captures, and framework internals can create copies that cannot be reliably erased. Wiping a C buffer does not wipe those copies. Clear bindings, cancel secret-bearing tasks, remove undo state and decrypted references on lock, but do not describe that as complete memory erasure. Whole-payload JSON decoding increases exposure; the size cap bounds cost, not confidentiality against a live attacker.
-
-Never log passphrases, keys, entries, clipboard values, plaintext buffers, or full vault URLs. Use stable error codes and public algorithm/version information only. Do not attach model descriptions or raw errors containing user data to diagnostics. No analytics or crash-reporting service. Disable application core dumps where supported for release builds; this cannot prevent all OS diagnostics or privileged capture. FileVault and a supported, updated OS are useful additional protections, not decryption dependencies.
-
-## Clipboard and UI policy
-
-The app hides secrets until an explicit reveal action and disables text-control undo and automatic writing services. Lock clears presentation state, draft bindings, search, and revealed views immediately, cancels pending work, and invalidates its results. It waits for the in-flight operation before releasing the engine session and folder grants. An already-started commit can finish; the lock notice asks users to reopen to inspect an interrupted operation.
-
-Copy buttons use pasteboard change-count ownership without retaining a second secret for comparison. Expiration, lock, and orderly quit clear only the observed owned write. Tests include another writer replacing the clipboard with identical text. The OS comparison and clear are separate calls: a narrow cross-process race remains. Clipboard clearing cannot revoke data captured by a history manager, another app, or a cross-device clipboard service. Concealed and transient types are [community interoperability hints](https://nspasteboard.org/), not enforcement. Ordinary copy actions from editors are not managed by this timer.
-
-App-local input resets a monotonic inactivity deadline; background operations do not. Expiry is checked before an arriving event can renew the session, and before managed copying. A main-run-loop timer checks every half second. Sleep and macOS-session deactivation lock even when inactivity is disabled. Unsubmitted drafts are discarded, as explained in the editor and settings. Tests simulate sleep during delayed unlock, save, and passphrase changes, including services that ignore cancellation. Actual hardware sleep and fast-user-switch testing remain release checks.
-
-Defaults are five minutes for inactivity and thirty seconds for managed clipboard expiration. Only these two non-secret timeout preferences persist in UserDefaults; they are not decryption dependencies. Swift and framework memory copies remain subject to the limitations above.
-
-## Backups and recovery
-
-Back up only closed, committed `.crypta` files. Copying to external disks, SMB, or a cloud folder preserves container encryption but exposes file metadata and may retain many historical ciphertext revisions. Work on one local copy at a time; close it before transfer. Never merge by last-writer-wins. Keep independently verified backups and periodically test opening a copy in a new session.
-
-No reset, recovery account, server key, or hidden backdoor exists in the design. Losing the passphrase or all good file copies loses the vault. Older backups require the passphrase valid for their key slot. Changing a passphrase does not revoke old copies or rotate the vault key. If the old passphrase and an old file may have leaked, create a new vault key, re-encrypt the data, and rotate exposed service credentials. Deleting old revisions from a cloud provider or SSD does not prove secure erasure.
-
-Without an external trusted freshness record, an older valid vault may be replayed undetectably. The core must never require a local counter or Keychain record to recover a valid file.
-
-## Release gates
-
-- Complete the [test matrix](Documentation/MILESTONES.md), parser fuzzing, failure injection, and clean-machine portability checks.
-- Validate exact dependency source/binary provenance, runtime version, architecture, licenses, deployment target, and advisory status. Archive hashes and resolved revisions with releases.
-- Review AEAD coverage, KDF limits, byte-level passphrase handling, cancellation, file races, and lock/clipboard lifecycle.
-- Exercise the oldest supported macOS and Apple Silicon hardware, including sleep, low memory, forced termination, and inaccessible files.
-- Audit all disk writes and logs using synthetic recognizable secrets; inspect staging/recovery files and application state. This cannot prove that the OS never writes memory to disk.
-- Ship with App Sandbox, only user-selected file access, no network entitlement, hardened runtime, appropriate signing, and notarization. Keep platform bookmark access outside the core. Verify actual entitlements on the built app.
-- Obtain independent review before presenting the app as suitable for sensitive production use. Passing tests is necessary, not certification.
+**Crypta is experimental and has not been independently audited. No supported production release is available. Use synthetic data while evaluating it.**
 
 ## Reporting vulnerabilities
 
-Private vulnerability reporting is enabled for [jplonghi/Crypta](https://github.com/jplonghi/Crypta). Use **Security → Advisories → Report a vulnerability**, or open the [private reporting form](https://github.com/jplonghi/Crypta/security/advisories/new). No response-time promise is established yet.
+Use [GitHub's private vulnerability reporting form](https://github.com/jplonghi/Crypta/security/advisories/new). Include the affected revision, platform, reproduction steps, impact, and a synthetic example. Do not publish unresolved exploit details in public issues or pull requests, and never submit real vaults, passphrases, or service credentials. No response-time commitment is established; fixes target the development version.
 
-Use that private form for suspected vulnerabilities. Include the affected revision, platform, reproduction steps, impact, and a synthetic proof of concept. Do not disclose exploitable details in public issues or pull requests. Never submit live passphrases, real vault files, or service credentials, even in a private report. There is currently no supported production release; fixes will target the development version until a release support policy is published.
+## Security model
+
+Crypta protects the contents and metadata of a locked vault against disclosure from a copied file and authenticates modified data before exposing it. Decryption requires the vault file and exact master-passphrase bytes, with no account, server key, Keychain record, or device state.
+
+- Argon2id derives a temporary key that wraps a random vault key. XChaCha20-Poly1305 authenticates the key envelope and complete payload.
+- Public structure and resource limits are checked before expensive key derivation. Authenticated payloads undergo strict schema validation.
+- Saves use ciphertext-only staging, atomic replacement, writer locks, and file fingerprints. Ambiguous post-rename failures require locking and reopening.
+- The app uses App Sandbox with user-selected read/write access and no network entitlement. It has no telemetry or crash-reporting service.
+
+The [vault format](VAULT_FORMAT.md) defines the cryptographic composition, limits, migration, and persistence contract. The pinned Swift package vendors a native libsodium archive: version pins and hashes identify that artifact but do not prove reproducible source-to-binary provenance.
+
+## Threats and limits
+
+| Threat | Protection and remaining limit |
+| --- | --- |
+| Stolen vault or backup | Memory-hard derivation and encrypted metadata; an attacker can still guess passphrases offline without a rate limit. |
+| Malformed or modified file | Bounded parsing and authenticated encryption; parsing and resource use remain attacker-triggerable within those limits. |
+| Replaced or older valid vault | In-session fingerprints detect changes, but there is no trusted external identity or freshness record to prevent complete substitution or rollback. |
+| Interrupted save or concurrent writer | Encrypted staging and local locking protect confirmed saves under supported filesystem semantics. A writer ignoring the lock can race between comparison and rename. Remote/cloud filesystems have no distributed conflict guarantee. |
+| Unattended app | Inactivity, sleep, and session locking reduce exposure; they cannot protect access before locking or compensate for missing OS notifications. |
+| Live memory, screen, keyboard, or clipboard access | An unlocked vault can be captured by a compromised OS, privileged process, debugger, input method, screen recorder, or clipboard reader. These are outside Crypta's protection boundary. |
+| Dependency or build compromise | Pinned dependencies and review reduce risk; they do not establish that the running binary is trustworthy. |
+
+The format reveals its identifiers, KDF parameters, random vault ID, encrypted size, and normal filesystem name/timestamps. It does not hide the existence of a vault or relationships between copied revisions. Availability, coercion, secure deletion from SSDs/snapshots, and revocation of captured data are not guaranteed.
+
+## Memory, UI, and clipboard
+
+Owned native key buffers use guarded allocation and explicit wiping. Swift strings, data buffers, decoded models, task captures, and UI/framework internals can retain copies that cannot be reliably erased. Page locking, where available, does not protect every plaintext copy or prevent all OS diagnostics and privileged capture.
+
+Lock clears displayed snapshots, drafts, search and revealed state, invalidates late completions, and waits for in-flight work before releasing the engine session. A commit already underway can finish while locking. Automatic lock discards unsaved drafts. Text controls disable undo and automatic writing services where supported.
+
+Managed copy buttons track pasteboard ownership and clear only Crypta's observed write at expiry, lock, or orderly quit. The ownership comparison and clear are separate calls, leaving a narrow cross-process race. Clearing cannot revoke data captured by another app or clipboard history service. Manual copy from editors is outside the managed timer.
+
+Only the two timeout preferences persist in UserDefaults. Never log passphrases, keys, entries, clipboard values, plaintext buffers, or full vault paths. Returned model snapshots are plaintext and must not be logged or retained after lock.
+
+## Backups and compatibility
+
+Work on one local copy at a time and close it before transfer. Keep encrypted backups and test opening a copy in a fresh session. File names and metadata remain visible, and storage or cloud providers may retain historical revisions.
+
+There is no reset or recovery backdoor. Losing the passphrase or every good file copy loses the vault. Passphrase changes rewrap the existing vault key; old backups keep their old passphrase. An old file and old passphrase can therefore reveal the unchanged key. Compromise recovery requires a new vault key and rotation of exposed service credentials. Deleting old copies does not prove secure erasure.
+
+Readers accept payload schemas 1 and 2. Saving migrated content writes schema 2, which older builds reject. Large legacy category expansion can exceed the 16 MiB save limit even when the old vault remains readable; reduce the expanded content before saving. See [migration details](VAULT_FORMAT.md#reading-schema-1).
+
+## Before a production release
+
+Independent review and remediation, native-library build provenance, macOS 14 and low-memory/hardware testing, actual sleep/session and accessibility checks, and Developer ID signing/notarization remain required. Automated tests, sanitizer runs, and locally ad-hoc signed builds do not replace those checks or certify security.

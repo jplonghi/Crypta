@@ -38,4 +38,5 @@ __pycache__/
 /.local/
 /.codex/
 /.agents/
+/AGENTS.md
 /Crypta_Build_Prompt.md
