@@ -1,0 +1,41 @@
+# Build output and machine-specific editor state
+.DS_Store
+.build/
+.swiftpm/
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+.vscode/
+*.app/
+*.xcarchive/
+*.dmg
+*.pkg
+*.log
+*.xcresult/
+__pycache__/
+.venv/
+
+# Private vaults; only this reviewed public compatibility fixture is shared
+*.crypta
+*.crypta.*
+!Packages/CryptaCore/Tests/CryptaCoreTests/Fixtures/reference-v1.crypta
+*.crypta-stage
+*.crypta-lock
+
+# Credentials and signing material
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.mobileprovision
+*.provisionprofile
+
+# Local agent/chat notes stay in this workspace, outside the public repository
+/.local/
+/.codex/
+/.agents/
+/Crypta_Build_Prompt.md

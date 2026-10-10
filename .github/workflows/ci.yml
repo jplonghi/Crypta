@@ -1,0 +1,41 @@
+name: Crypta checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crypta-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: macOS build and tests
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Verify build environment
+        run: |
+          test "$(uname -m)" = arm64
+          xcodebuild -version
+          swift --version
+      - name: Test vault engine
+        run: swift test --force-resolved-versions --package-path Packages/CryptaCore
+      - name: Test desktop presentation
+        run: swift test --force-resolved-versions
+      - name: Exercise parser mutations
+        run: bash Scripts/fuzz.sh 20000
+      - name: Build Release app
+        run: xcodebuild -project Crypta.xcodeproj -scheme Crypta -configuration Release -destination 'platform=macOS,arch=arm64' -derivedDataPath DerivedData -onlyUsePackageVersionsFromResolvedFile build
+      - name: Verify local app signature
+        run: codesign --verify --deep --strict DerivedData/Build/Products/Release/Crypta.app
