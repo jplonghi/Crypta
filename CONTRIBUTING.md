@@ -1,10 +1,19 @@
 # Contributing to Crypta
 
-Crypta is experimental. Use synthetic data when developing, testing, taking screenshots, and reporting issues. Read [SECURITY.md](SECURITY.md) and [THREAT_MODEL.md](THREAT_MODEL.md) before changing vault handling.
+Use synthetic data for development, screenshots, and bug reports. Read [SECURITY.md](SECURITY.md) before changing vault handling. Report suspected vulnerabilities privately through the process described there; never attach real vaults or credentials.
 
-For ordinary bugs, describe the expected behavior, reproduction steps, macOS/Xcode versions, and any synthetic example needed to reproduce the problem. Follow the private-reporting guidance in SECURITY.md for suspected vulnerabilities. Never attach a real vault, passphrase, token, or private log.
+For ordinary bugs, include expected behavior, reproduction steps, and macOS/Xcode versions. Keep pull requests focused and explain the resulting behavior, compatibility impact, and checks actually run.
 
-Keep pull requests focused. Explain the resulting behavior, relevant compatibility changes, and checks actually run. Reuse existing components and avoid dependencies or abstractions unrelated to the change. Add regression coverage for nontrivial logic, especially parsing, migration, cryptography, persistence, and lock behavior.
+## Code layout
+
+- `CryptaApp/`: app scene, SwiftUI views, presentation state, and macOS adapters.
+- `Packages/CryptaCore/`: vault models, cryptography, format parsing, and encrypted persistence.
+- `CryptaAppTests/` and `Packages/CryptaCore/Tests/`: presentation and engine tests, synthetic fixtures, and failure-injection tools.
+- `Scripts/`: parser mutation harness and a separate test implementation of the file format.
+
+The `VaultEngine` actor owns the encryption key and serializes vault transactions. Presentation code owns plaintext snapshots and drafts and must discard them on lock. Save returns the committed revision; reuse that returned snapshot for later edits. Treat `durabilityUncertain` as a requirement to reopen and inspect the file before further writes.
+
+## Checks
 
 On an Apple Silicon Mac with Xcode and Swift 6, run the checks relevant to your change:
 
@@ -16,10 +25,14 @@ xcodebuild -project Crypta.xcodeproj -scheme Crypta -configuration Release -dest
 codesign --verify --deep --strict DerivedData/Build/Products/Release/Crypta.app
 ```
 
-The GitHub workflow runs these checks on macOS 15 with Xcode 16.4. It does not certify security, exercise the full UI, or replace macOS 14 and physical-hardware release checks. Local ad-hoc signing does not require distribution credentials.
+Use `--sanitize address` with `swift test` or `CRYPTA_FUZZ_ASAN=1` with the mutation harness for Address Sanitizer checks. The vendored native libsodium archive is not instrumented. The [public fixtures](Packages/CryptaCore/Tests/CryptaCoreTests/Fixtures/README.md) document compatibility and vector provenance.
 
-Preserve exact UTF-8 passphrases, authenticated encryption, strict bounded validation, encrypted metadata, atomic saves, and file-plus-passphrase portability. Format changes require explicit versioning, fixtures, and compatibility tests. Keep the deterministic public fixture immutable unless deliberately updating its documented compatibility contract.
+Passing checks does not certify security or replace actual UI, minimum-OS, hardware, and signed-release testing. Local ad-hoc signing does not require distribution credentials.
 
-Review the files being committed. Keep personal notes in `.local/` and real vaults outside the checkout. Do not force-add ignored private files. Dependency changes must include updated lockfiles, provenance, and third-party notices.
+## Change requirements
 
-Contributions are made under the project's [MIT license](LICENSE). Preserve the separate [third-party notices](Documentation/THIRD_PARTY_NOTICES.md).
+Preserve exact UTF-8 passphrases, authenticated encryption, bounded validation, encrypted metadata, atomic saves, and file-plus-passphrase portability. Add regression coverage for nontrivial parsing, migration, cryptography, persistence, or lifecycle changes. Follow the [format contract](VAULT_FORMAT.md); schema changes need versioning and compatibility tests.
+
+Keep the deterministic public fixture immutable unless deliberately changing its documented contract. Dependency updates must include pinned resolutions, provenance, and license notices. Review staged files and never force-add ignored vaults or credentials.
+
+Contributions use the [MIT license](LICENSE). Preserve [third-party notices](THIRD_PARTY_NOTICES.md).
