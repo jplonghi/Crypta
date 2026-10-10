@@ -1,6 +1,6 @@
 # Security design and status
 
-**Crypta has an experimental Phase 5 native app, vault engine, and domain models. No implementation has been independently audited or released. Do not entrust it with real secrets.** This document distinguishes planned safeguards from verified software behavior.
+**Crypta is undergoing Phase 6 internal hardening. No implementation has been independently audited or released. Do not entrust it with real secrets.** This document distinguishes planned safeguards from verified software behavior.
 
 ## Protection status
 
@@ -12,9 +12,10 @@
 | Native UI, explicit encrypted save, manual lock | Implemented; presentation tests and sandboxed UI smoke checks |
 | Clipboard expiration, inactivity/sleep/session lock, passphrase-change UI | Implemented; injected-clock/state tests, private pasteboard integration, real-engine rewrap tests |
 | Dependency artifact verification and minimum-OS runtime test | Pinned hash/runtime/arm64 metadata verified; provenance and macOS 14 runtime test pending |
+| Internal Phase 6 hardening | Failed-unlock cleanup, bounded staging names, key memory diagnostics, Release core-dump protection; core/desktop tests and ASan parser checks pass on M1 Max |
 | Independent security review, signed/notarized release | Pending |
 
-Detailed test outcomes and limitations: [Phase 2 results](Documentation/PHASE_2_RESULTS.md), [Phase 3 results](Documentation/PHASE_3_RESULTS.md), [Phase 4 results](Documentation/PHASE_4_RESULTS.md), and [Phase 5 results](Documentation/PHASE_5_RESULTS.md).
+Detailed test outcomes and limitations: [Phase 2 results](Documentation/PHASE_2_RESULTS.md), [Phase 3 results](Documentation/PHASE_3_RESULTS.md), [Phase 4 results](Documentation/PHASE_4_RESULTS.md), [Phase 5 results](Documentation/PHASE_5_RESULTS.md), and [Phase 6 results](Documentation/PHASE_6_RESULTS.md). The [independent review brief](Documentation/SECURITY_REVIEW_BRIEF.md) defines the outstanding external assessment.
 
 The public engine rejects unsupported schemas/types/fields before unlocking. All entry values, including plain-display custom fields, remain inside the authenticated ciphertext. Returned model snapshots contain plaintext and must not be logged or retained after lock. Revision checks prevent stale in-session edits; they do not establish freshness against replay of an older valid vault file.
 
@@ -24,11 +25,11 @@ Keep keys in explicitly owned guarded buffers; check allocations and memory-lock
 
 Swift `String`, `Data`, copy-on-write storage, text controls, decoding, undo stacks, task captures, and framework internals can create copies that cannot be reliably erased. Wiping a C buffer does not wipe those copies. Clear bindings, cancel secret-bearing tasks, remove undo state and decrypted references on lock, but do not describe that as complete memory erasure. Whole-payload JSON decoding increases exposure; the size cap bounds cost, not confidentiality against a live attacker.
 
-Never log passphrases, keys, entries, clipboard values, plaintext buffers, or full vault URLs. Use stable error codes and public algorithm/version information only. Do not attach model descriptions or raw errors containing user data to diagnostics. No analytics or crash-reporting service. Disable application core dumps where supported for release builds; this cannot prevent all OS diagnostics or privileged capture. FileVault and a supported, updated OS are useful additional protections, not decryption dependencies.
+Never log passphrases, keys, entries, clipboard values, plaintext buffers, or full vault URLs. Use stable error codes and public algorithm/version information only. Do not attach model descriptions or raw errors containing user data to diagnostics. No analytics or crash-reporting service. Release startup sets and verifies a zero process core-dump soft limit, closing before vault access if unavailable. Debug builds leave that limit unchanged. This cannot prevent all OS diagnostics or privileged capture. FileVault and a supported, updated OS are useful additional protections, not decryption dependencies.
 
 ## Clipboard and UI policy
 
-The app hides secrets until an explicit reveal action and disables text-control undo and automatic writing services. Lock clears presentation state, draft bindings, search, and revealed views immediately, cancels pending work, and invalidates its results. It waits for the in-flight operation before releasing the engine session and folder grants. An already-started commit can finish; the lock notice asks users to reopen to inspect an interrupted operation.
+The app hides secrets until an explicit reveal action and disables text-control undo and automatic writing services. Lock clears presentation state, draft bindings, search, and revealed views immediately, cancels pending work, and invalidates its results. It waits for the in-flight operation before releasing the engine session and folder grants. Failed create/unlock presentation operations also await engine lock before retry. An already-started commit can finish; the lock notice asks users to reopen to inspect an interrupted operation.
 
 Copy buttons use pasteboard change-count ownership without retaining a second secret for comparison. Expiration, lock, and orderly quit clear only the observed owned write. Tests include another writer replacing the clipboard with identical text. The OS comparison and clear are separate calls: a narrow cross-process race remains. Clipboard clearing cannot revoke data captured by a history manager, another app, or a cross-device clipboard service. Concealed and transient types are [community interoperability hints](https://nspasteboard.org/), not enforcement. Ordinary copy actions from editors are not managed by this timer.
 

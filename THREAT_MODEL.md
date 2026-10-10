@@ -1,6 +1,6 @@
 # Threat model
 
-Status: threat model retained for Phase 2. Core controls have implementation/test evidence in [PHASE_2_RESULTS.md](Documentation/PHASE_2_RESULTS.md). UI, clipboard, sleep locking and release controls remain requirements. This threat table states intended defenses and their limitations.
+Status: core controls, UI, clipboard and injected sleep/session handling now have implementation/test evidence. [Phase 6 results](Documentation/PHASE_6_RESULTS.md) record internal hardening and the outstanding independent review, real platform tests, native provenance and distribution signing gates. This table states defenses and their limitations; it is not an independent audit.
 
 ## Security goals and assets
 
@@ -12,7 +12,7 @@ Assets include master passphrase bytes, KEK, vault key, decrypted model, editor 
 
 Trust the running application, reviewed dependency artifacts, random source, and uncompromised OS while secrets are in use. Treat vault bytes, file paths, synchronization providers, clipboard readers, and external modifications as untrusted. Filesystem durability and locking are explicit platform assumptions. SwiftUI/AppKit sit outside the portable cryptographic engine.
 
-| Threat | Proposed defense | Residual limitation |
+| Threat | Defense | Residual limitation |
 | --- | --- | --- |
 | Stolen file or cloud backup | Argon2id, strong passphrase, encrypted metadata | Unlimited offline guessing remains possible; no rate limiter can stop copies. |
 | Header/ciphertext edits | Two AEAD domains with explicit shared identity | Structural checks precede authentication; all bounded work remains attacker-triggerable. |
@@ -20,7 +20,7 @@ Trust the running application, reviewed dependency artifacts, random source, and
 | Replay of an older valid file/key slot | Detect in-session changes via ciphertext fingerprint | No portable, stateless way to establish newest version; valid old components can authenticate. |
 | Malformed/huge file | Fixed layout, checked arithmetic, strict length/schema/KDF limits | Parsers and dependencies still need fuzzing and review. |
 | Crash during save | Ciphertext-only staging, atomic durable commit | Unsubmitted edits may be lost; storage failure and remote semantics are not eliminated. |
-| Two Crypta processes | Coordinated lock plus digest comparison | Locks must share a domain; other software may ignore them. |
+| Two Crypta processes | Coordinated lock plus digest comparison | Locks must share a domain; software ignoring the lock can race between the final comparison and rename. |
 | Cloud/SMB simultaneous edits | Single-writer workflow and conflict refusal | No distributed locking or synchronization is implemented. |
 | Clipboard reader/history | Explicit copy, ownership-safe expiration | Another process can copy a secret immediately and retain it indefinitely. |
 | Unattended unlocked app | Inactivity/sleep locking; hidden fields | No protection against use before lock or a failed OS notification. |

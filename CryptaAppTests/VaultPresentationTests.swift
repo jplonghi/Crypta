@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import Darwin
 import CryptaCore
 @testable import CryptaDesktop
 
@@ -158,6 +159,49 @@ final class VaultPresentationTests: XCTestCase {
         check(draft.password.isEmpty)
     }
 
+    func testFailedReadAfterOpenReleasesSessionAndAllowsRetry() async throws {
+        let service = try ControlledService()
+        await service.failRead(.allocationFailed)
+        let model = VaultViewModel(service: service)
+        model.prepareOpen(URL(fileURLWithPath: "/tmp/test.crypta"), folder: URL(fileURLWithPath: "/tmp"))
+        model.unlock(passphrase: "public"); await model.waitForOperation()
+        check(await service.locked)
+        check(model.screen == .locked && model.vault == nil && !model.isBusy)
+        check(model.errorMessage != nil && model.isKeyMemoryLocked == nil)
+        check(!model.security.sessionActive)
+        await service.failRead(nil)
+        model.unlock(passphrase: "public"); await model.waitForOperation()
+        check(model.screen == .unlocked && model.errorMessage == nil)
+    }
+
+    func testKeyMemoryCapabilityIsReportedAndClearedOnLock() async throws {
+        let service = try ControlledService()
+        await service.setMemoryLocked(false)
+        let model = VaultViewModel(service: service)
+        model.prepareOpen(URL(fileURLWithPath: "/tmp/test.crypta"), folder: URL(fileURLWithPath: "/tmp"))
+        model.unlock(passphrase: "public"); await model.waitForOperation()
+        check(model.screen == .unlocked && model.isKeyMemoryLocked == false)
+        model.lockImmediately(); await model.waitForOperation()
+        check(model.isKeyMemoryLocked == nil)
+        await service.setMemoryLocked(true)
+        model.unlock(passphrase: "public"); await model.waitForOperation()
+        check(model.isKeyMemoryLocked == true)
+    }
+
+    func testCoreDumpLimitIsDisabledWithoutChangingHardLimit() throws {
+        var original = rlimit()
+        XCTAssertEqual(getrlimit(RLIMIT_CORE, &original), 0)
+        defer { XCTAssertEqual(setrlimit(RLIMIT_CORE, &original), 0) }
+        var enabled = original
+        enabled.rlim_cur = min(original.rlim_max, 1024)
+        XCTAssertEqual(setrlimit(RLIMIT_CORE, &enabled), 0)
+        check(CryptaLifecycle.disableCoreDumps())
+        var result = rlimit()
+        XCTAssertEqual(getrlimit(RLIMIT_CORE, &result), 0)
+        XCTAssertEqual(result.rlim_cur, 0)
+        XCTAssertEqual(result.rlim_max, original.rlim_max)
+    }
+
     func testLockSuppressesLateUnlockAndClearsRetainedDraft() async throws {
         let service = try ControlledService()
         await service.pauseRead()
@@ -206,10 +250,12 @@ final class VaultPresentationTests: XCTestCase {
 }
 
 private actor ControlledService: VaultService {
+    var isKeyMemoryLocked = true
     var snapshot: Vault
     var locked = true
     var createCalls = 0
     private var saveError: VaultError?
+    private var readError: VaultError?
     private var pause = false
     private var reader: CheckedContinuation<Void, Never>?
     private var readStarted = false
@@ -224,6 +270,7 @@ private actor ControlledService: VaultService {
     func readVault() async throws -> Vault {
         readStarted = true; waiter?.resume(); waiter = nil
         if pause { await withCheckedContinuation { reader = $0 } }
+        if let readError { throw readError }
         return snapshot
     }
     func save(vault: Vault, modifiedAt: Date) async throws -> Vault {
@@ -233,6 +280,8 @@ private actor ControlledService: VaultService {
     func changePassphrase(current: String, new: String, parameters: KDFParameters) async throws {}
     func lock() async { locked = true }
     func failSave(_ error: VaultError?) { saveError = error }
+    func failRead(_ error: VaultError?) { readError = error }
+    func setMemoryLocked(_ locked: Bool) { isKeyMemoryLocked = locked }
     func pauseRead() { pause = true }
     func waitUntilRead() async { if !readStarted { await withCheckedContinuation { waiter = $0 } } }
     func resumeRead() { pause = false; reader?.resume(); reader = nil }

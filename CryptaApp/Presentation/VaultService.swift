@@ -3,6 +3,7 @@ import CryptaCore
 
 /// The presentation boundary is injectable; production always uses the real CryptaCore actor.
 public protocol VaultService: Sendable {
+    var isKeyMemoryLocked: Bool { get async }
     func create(at url: URL, passphrase: String, name: String, createdAt: Date, parameters: KDFParameters) async throws -> Vault
     func open(at url: URL, passphrase: String) async throws
     func readVault() async throws -> Vault

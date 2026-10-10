@@ -23,7 +23,7 @@ struct EncryptedFileStore: Sendable {
         _ = try VaultFormat.parse(bytes)
         return try directory(url) { directoryFD, name in
             let lockName = "." + name + ".crypta-lock"
-            let lockFD = openat(directoryFD, lockName, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
+            let lockFD = openat(directoryFD, lockName, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK, 0o600)
             guard lockFD >= 0 else { throw VaultError.fileAccess }
             defer { close(lockFD) }
             try regular(lockFD)
@@ -39,7 +39,8 @@ struct EncryptedFileStore: Sendable {
                 guard errno == ENOENT else { throw VaultError.fileAccess }
             }
 
-            let staging = "." + name + "." + UUID().uuidString + ".crypta-stage"
+            // Keep staging names bounded even when the vault uses the longest allowed name.
+            let staging = ".crypta-" + UUID().uuidString + ".crypta-stage"
             let fd = openat(directoryFD, staging, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
             guard fd >= 0 else { throw VaultError.fileAccess }
             var descriptorOpen = true

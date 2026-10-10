@@ -1,6 +1,6 @@
 # Implementation milestones
 
-The build prompt explicitly requests incremental work and a Phase 1 first deliverable. Phase 1 documentation, the Phase 2 working engine, Phase 3 typed models, and the Phase 4 native app are delivered. [Phase 2 results](PHASE_2_RESULTS.md) record actual evidence and outstanding environment/release checks; [Phase 3 results](PHASE_3_RESULTS.md) cover schema enforcement and model transactions. [Phase 4 results](PHASE_4_RESULTS.md) describe the native app and its verification. [Phase 5 results](PHASE_5_RESULTS.md) cover automatic lock, clipboard ownership, passphrase changes, and keyboard focus. Phase 6 release hardening remains pending.
+The build prompt explicitly requests incremental work and a Phase 1 first deliverable. Phase 1 documentation, the Phase 2 working engine, Phase 3 typed models, and the Phase 4 native app are delivered. [Phase 2 results](PHASE_2_RESULTS.md) record actual evidence and outstanding environment/release checks; [Phase 3 results](PHASE_3_RESULTS.md) cover schema enforcement and model transactions. [Phase 4 results](PHASE_4_RESULTS.md) describe the native app and its verification. [Phase 5 results](PHASE_5_RESULTS.md) cover automatic lock, clipboard ownership, passphrase changes, and keyboard focus. [Phase 6 internal hardening](PHASE_6_RESULTS.md) is in progress; independent review and outstanding release gates prevent completion.
 
 ## Phase 1 — architecture and threat model
 
@@ -53,6 +53,8 @@ Exit: end-to-end UI and state-machine tests verify actual behavior, including fa
 ## Phase 6 — hardening and release readiness
 
 Review primitives, composition, parser, dependencies, memory ownership, logs, persistence races, sandbox entitlements, and clipboard behavior. Run on the oldest supported OS and an M1. Test a signed/notarized sandboxed build, not only a debugger build. Perform independent review and resolve findings. Publish known limitations, reproducible build/dependency evidence, format fixtures and a private vulnerability-reporting channel before inviting sensitive use.
+
+Current evidence: internal code inspection and targeted fixes; 31 core and 22 desktop tests, both suites under Address Sanitizer, 100,000 instrumented parser mutations, optimized M1 Max timing/peak-memory measurements, Release build and ad-hoc signature/entitlement checks. The [review brief](SECURITY_REVIEW_BRIEF.md) is prepared. macOS 14 access and Apple Developer Program membership are not currently available. External review, native-artifact provenance, low-memory/base-M1 and real lifecycle/accessibility testing, and signed/notarized distribution remain open.
 
 ## MVP boundary
 

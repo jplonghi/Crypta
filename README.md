@@ -4,7 +4,7 @@ A native macOS vault project whose encrypted `.crypta` file and master passphras
 
 ## Current status
 
-**Phase 5 adds automatic locking, managed secret copying, security settings, and master-passphrase changes to the native app.** Use synthetic data during development: independent security review, release hardening, and macOS 14/M1 testing remain pending.
+**Phase 6 internal hardening is in progress.** Failed-unlock cleanup, bounded staging filenames, key memory diagnostics, and Release core-dump protection are implemented. Local tests and Address Sanitizer checks pass on an M1 Max. Use synthetic data during development: independent review, native-binary provenance, macOS 14/low-memory testing, and distribution signing/notarization remain pending. See the [Phase 6 evidence and remaining gates](Documentation/PHASE_6_RESULTS.md).
 
 Implemented in [CryptaCore](Packages/CryptaCore/Package.swift):
 
@@ -81,7 +81,7 @@ await engine.lock()
 bash Scripts/fuzz.sh 20000
 ```
 
-This runs reproducible parser mutations. Set `CRYPTA_FUZZ_ASAN=1` to request AddressSanitizer on a working sanitizer runtime. On the development host, that runtime deadlocked before application startup; no sanitizer pass is claimed.
+This runs reproducible parser mutations against the binary fixture, legacy payload and a current-schema seed covering all entry types. Set `CRYPTA_FUZZ_ASAN=1` to request AddressSanitizer. Phase 6 records 100,000 instrumented mutations and both instrumented test suites passing on the current toolchain. The older Phase 2 startup failure remains historical; the bundled native library is not sanitizer-instrumented.
 
 The test-only Python reference implementation uses separate Argon2 and XChaCha libraries:
 
@@ -105,6 +105,8 @@ Build output, local editor state, credentials, signing material, and vault files
 - [Threat model](THREAT_MODEL.md)
 - [Vault format](VAULT_FORMAT.md)
 - [Security status and limitations](SECURITY.md)
+- [Phase 6 hardening results and remaining release gates](Documentation/PHASE_6_RESULTS.md)
+- [Independent security review brief](Documentation/SECURITY_REVIEW_BRIEF.md)
 - [Phase 5 lifecycle and usability results](Documentation/PHASE_5_RESULTS.md)
 - [Phase 4 app and verification results](Documentation/PHASE_4_RESULTS.md)
 - [Phase 3 models and verification results](Documentation/PHASE_3_RESULTS.md)

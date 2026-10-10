@@ -33,8 +33,12 @@ jobs:
         run: swift test --force-resolved-versions --package-path Packages/CryptaCore
       - name: Test desktop presentation
         run: swift test --force-resolved-versions
+      - name: Test engine with Address Sanitizer
+        run: swift test --force-resolved-versions --package-path Packages/CryptaCore --scratch-path /tmp/crypta-asan-core --sanitize address
+      - name: Test desktop with Address Sanitizer
+        run: swift test --force-resolved-versions --scratch-path /tmp/crypta-asan-desktop --sanitize address
       - name: Exercise parser mutations
-        run: bash Scripts/fuzz.sh 20000
+        run: CRYPTA_FUZZ_ASAN=1 bash Scripts/fuzz.sh 20000
       - name: Build Release app
         run: xcodebuild -project Crypta.xcodeproj -scheme Crypta -configuration Release -destination 'platform=macOS,arch=arm64' -derivedDataPath DerivedData -onlyUsePackageVersionsFromResolvedFile build
       - name: Verify local app signature

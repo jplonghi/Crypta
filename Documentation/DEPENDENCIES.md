@@ -2,6 +2,8 @@
 
 Research date: 2026-10-07. Findings below distinguish source inspection from a compiled compatibility test. Phase 2 now resolves the exact package revision below. Release artifact approval and independent audit remain pending.
 
+The [2026-10-09 Phase 6 check](PHASE_6_RESULTS.md) reconfirms the pinned artifact hash and runtime version, records the limited upstream advisory-page observations, and explains the outstanding native build provenance. No dependency was changed. Sanitizer checks cover Crypta's compiled code, not the uninstrumented vendored archive.
+
 ## Recommended technology
 
 Use libsodium through a minimal internal Swift adapter. `jedisct1/swift-sodium` is the preferred packaging candidate; its `Clibsodium` product allows direct calls needed for explicit parameters, authenticated associated data, guarded buffers, and deterministic errors. Avoid spreading raw C calls through the domain or UI. The higher-level `Sodium` wrapper is useful but must not force extra key copies or hide necessary options.

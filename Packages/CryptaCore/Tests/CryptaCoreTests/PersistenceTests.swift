@@ -5,6 +5,37 @@ import Testing
 
 @Suite(.serialized)
 struct PersistenceTests {
+    @Test func longestUIFilenameCanCreateSaveAndReopen() async throws {
+        let directory = try TestDirectory(); defer { directory.remove() }
+        let name = String(repeating: "é", count: 115)
+        #expect(name.utf8.count == 230)
+        let url = directory.url.appendingPathComponent(name + ".crypta")
+        let engine = VaultEngine()
+        var vault = try await engine.create(at: url, passphrase: testPassphrase, name: testName, parameters: testParameters)
+        vault.name = "Saved long name"
+        let saved = try await engine.save(vault: vault)
+        await engine.lock()
+        try await engine.open(at: url, passphrase: testPassphrase)
+        #expect(try await engine.readVault() == saved)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: directory.url.path).allSatisfy { !$0.hasSuffix(".crypta-stage") })
+    }
+
+    @Test func specialLockFilesAreRejectedWithoutReplacingVault() async throws {
+        let directory = try TestDirectory(); defer { directory.remove() }
+        let engine = VaultEngine()
+        try await engine.create(at: directory.vault, passphrase: testPassphrase, name: testName, parameters: testParameters)
+        let store = EncryptedFileStore(), baseline = try store.read(directory.vault)
+        let lock = directory.url.appendingPathComponent(".Test.crypta.crypta-lock")
+        try FileManager.default.removeItem(at: lock)
+        #expect(mkfifo(lock.path, 0o600) == 0)
+        #expect(throws: VaultError.unsafeFile) { try store.commit(baseline.bytes, to: directory.vault, expecting: baseline.version) }
+        #expect(try store.read(directory.vault).version == baseline.version)
+        try FileManager.default.removeItem(at: lock)
+        try FileManager.default.createSymbolicLink(at: lock, withDestinationURL: directory.vault)
+        #expect(throws: VaultError.fileAccess) { try store.commit(baseline.bytes, to: directory.vault, expecting: baseline.version) }
+        #expect(try store.read(directory.vault).version == baseline.version)
+    }
+
     @Test func failureBoundariesAndEncryptedStaging() async throws {
         let directory = try TestDirectory(); defer { directory.remove() }
         let engine = VaultEngine()
