@@ -8,6 +8,7 @@ public final class VaultViewModel {
     public private(set) var vault: Vault?
     public private(set) var fileURL: URL?
     public private(set) var isBusy = false
+    public private(set) var isKeyMemoryLocked: Bool?
     public private(set) var activity = ""
     public let security: SessionSecurity
     public var noticeMessage: String?
@@ -251,7 +252,7 @@ public final class VaultViewModel {
         let previousTask = task
         previousTask?.cancel()
         editor?.clear(); editor = nil; tagToRename = nil; replacementTag = ""
-        vault = nil; selectedID = nil; search = ""; filter = .all; selectedTags = []; errorMessage = nil; contentGeneration = UUID()
+        vault = nil; isKeyMemoryLocked = nil; selectedID = nil; search = ""; filter = .all; selectedTags = []; errorMessage = nil; contentGeneration = UUID()
         screen = fileURL == nil || close ? .welcome : .locked
         isBusy = true; activity = "Locking vault…"
         let service = self.service
@@ -327,13 +328,19 @@ public final class VaultViewModel {
             guard !Task.isCancelled else { return }
             do {
                 let result = try await operation()
+                let memoryLocked = await self?.service.isKeyMemoryLocked
                 guard let self, self.generation == current, !Task.isCancelled else { return }
                 self.isBusy = false; self.activity = ""; self.task = nil
                 success(self, result)
+                self.isKeyMemoryLocked = memoryLocked
             } catch {
                 guard let self, self.generation == current else { return }
+                if self.screen != .unlocked {
+                    self.security.endSession()
+                    await self.service.lock()
+                    guard self.generation == current else { return }
+                }
                 self.isBusy = false; self.activity = ""; self.task = nil
-                if self.screen != .unlocked { self.security.endSession() }
                 if error is CancellationError { return }
                 if error as? VaultError == .durabilityUncertain { self.lockImmediately() }
                 self.errorMessage = UserFacingError.message(error)

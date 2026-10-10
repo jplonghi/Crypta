@@ -204,6 +204,7 @@ import CryptaCore
 }
 
 private actor DelayedSecurityService: VaultService {
+    var isKeyMemoryLocked: Bool { !locked }
     enum Operation { case open, save, rewrap }
     var locked = true
     var rewrapCalls = 0

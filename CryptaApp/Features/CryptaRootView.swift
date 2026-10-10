@@ -23,6 +23,11 @@ public struct CryptaRootView: View {
         .background(VaultStyle.background)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
+                if model.screen == .unlocked, model.isKeyMemoryLocked == false {
+                    Label("macOS could not protect the encryption key from swapping to disk. Lock the vault and try again after freeing memory.", systemImage: "exclamationmark.shield")
+                        .font(.callout).padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.orange.opacity(0.09))
+                }
                 if let notice = model.noticeMessage {
                     HStack {
                         Text(notice).font(.callout)

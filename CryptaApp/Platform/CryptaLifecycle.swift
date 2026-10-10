@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Darwin
 
 @MainActor public extension VaultViewModel {
     func requestLock() {
@@ -28,6 +29,24 @@ import SwiftUI
     private var securityMonitor: AppSecurityMonitor?
 
     public override init() { super.init() }
+    public func applicationWillFinishLaunching(_ notification: Notification) {
+        #if !DEBUG
+        if !Self.disableCoreDumps() {
+            let alert = NSAlert()
+            alert.messageText = "Crypta could not protect process memory"
+            alert.informativeText = "Process memory dumps could not be disabled. Crypta will close before opening a vault."
+            alert.runModal()
+            NSApp.terminate(nil)
+        }
+        #endif
+    }
+    static func disableCoreDumps() -> Bool {
+        var limit = rlimit()
+        guard getrlimit(RLIMIT_CORE, &limit) == 0 else { return false }
+        limit.rlim_cur = 0
+        guard setrlimit(RLIMIT_CORE, &limit) == 0, getrlimit(RLIMIT_CORE, &limit) == 0 else { return false }
+        return limit.rlim_cur == 0
+    }
     public func attach(_ window: NSWindow) {
         guard window.delegate !== self else { return }
         originalWindowDelegate = window.delegate
