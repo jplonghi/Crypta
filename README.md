@@ -64,7 +64,7 @@ Save commits edits; Cancel discards them. Automatic lock discards unsaved drafts
 
 Use ⌘F to search, ⌘E to edit, ⌘S to save, and ⇧⌘L to lock. **Vault → Change Master Passphrase** changes the current file's passphrase. Older backups retain their old passphrase. There is no passphrase reset or recovery service.
 
-Legacy schema-1 vaults are read with categories converted into tags. The next successful content save writes schema 2, which older builds cannot read. Keep an encrypted backup before upgrading. See the [vault format and compatibility contract](VAULT_FORMAT.md).
+Development uses one current payload structure without schema versions or migrations. Changes may require recreating synthetic vaults from earlier builds. See the [current vault format](VAULT_FORMAT.md).
 
 ## Contributing
 

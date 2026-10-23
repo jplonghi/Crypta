@@ -2,7 +2,7 @@
 
 Use synthetic data for development, screenshots, and bug reports. Read [SECURITY.md](SECURITY.md) before changing vault handling. Report suspected vulnerabilities privately through the process described there; never attach real vaults or credentials.
 
-For ordinary bugs, include expected behavior, reproduction steps, and macOS/Xcode versions. Keep pull requests focused and explain the resulting behavior, compatibility impact, and checks actually run.
+For ordinary bugs, include expected behavior, reproduction steps, and macOS/Xcode versions. Keep pull requests focused and explain the resulting behavior and checks actually run.
 
 ## Code layout
 
@@ -41,8 +41,10 @@ The [Homebrew tap](https://github.com/jplonghi/homebrew-tap) checks published re
 
 ## Change requirements
 
-Preserve exact UTF-8 passphrases, authenticated encryption, bounded validation, encrypted metadata, atomic saves, and file-plus-passphrase portability. Add regression coverage for nontrivial parsing, migration, cryptography, persistence, or lifecycle changes. Follow the [format contract](VAULT_FORMAT.md); schema changes need versioning and compatibility tests.
+Preserve exact UTF-8 passphrases, authenticated encryption, bounded validation, encrypted metadata, atomic saves, and file-plus-passphrase portability. Add regression coverage for nontrivial parsing, cryptography, persistence, or lifecycle changes. Follow the [current format contract](VAULT_FORMAT.md).
 
-Keep the deterministic public fixture immutable unless deliberately changing its documented contract. Dependency updates must include pinned resolutions, provenance, and license notices. Review staged files and never force-add ignored vaults or credentials.
+Crypta is an unshipped personal POC. Maintain one current payload structure without schema versions, migrations, or backward-compatibility adapters. Update tests and regenerate the deterministic public fixture when changing the payload contract; earlier development vaults do not need to remain readable.
+
+Dependency updates must include pinned resolutions, provenance, and license notices. Review staged files and never force-add ignored vaults or credentials.
 
 Contributions use the [MIT license](LICENSE). Preserve [third-party notices](THIRD_PARTY_NOTICES.md).

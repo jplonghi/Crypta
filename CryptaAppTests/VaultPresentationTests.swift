@@ -25,8 +25,10 @@ final class VaultPresentationTests: XCTestCase {
         check(model.screen == .unlocked)
         check(model.errorMessage == nil)
         for kind in EntryKind.allCases {
-            model.addEntry(kind)
+            model.addEntry()
             let draft = try XCTUnwrap(model.editor)
+            check(draft.kind == .credential)
+            draft.selectKind(kind)
             draft.title = "Synthetic \(kind.rawValue)"; draft.tags = ["Testing"]; draft.isFavorite = kind == .secureNote
             draft.pendingTag = "public-tag"
             switch kind {
@@ -41,6 +43,7 @@ final class VaultPresentationTests: XCTestCase {
             check(draft.title.isEmpty && draft.password.isEmpty && draft.content.isEmpty && draft.customFields.isEmpty)
         }
         check(model.vault?.entries.count == 4)
+        check(model.vault?.entries.map(\.type) == EntryKind.allCases.map(\.rawValue))
         check(model.vault?.entries.allSatisfy { $0.tags == ["Testing", "public-tag"] } == true)
         model.search = "SECRET-SENTINEL"; check(model.entries.isEmpty)
         model.search = "public-user"; check(model.entries.count == 1)
@@ -73,6 +76,29 @@ final class VaultPresentationTests: XCTestCase {
                 check(bytes.range(of: Data(sentinel.utf8)) == nil)
             }
         }
+    }
+
+    func testNewItemTypeSelectionPreservesInputAndExistingItemsKeepTheirType() {
+        let draft = EntryDraft(kind: .credential)
+        draft.title = "Synthetic item"; draft.tags = ["Work"]; draft.pendingTag = "Personal"; draft.isFavorite = true
+        draft.username = "public user"; draft.password = "public test secret"
+        draft.selectKind(.apiToken)
+        draft.service = "example"; draft.token = "public token"
+        draft.selectKind(.secureNote); draft.content = "public note"
+        draft.selectKind(.customSecret); draft.customFields = [.init(name: "Field", value: "public value")]
+        draft.selectKind(.credential)
+        check(draft.username == "public user" && draft.password == "public test secret")
+        for kind in EntryKind.allCases {
+            draft.selectKind(kind)
+            let entry = draft.entry()
+            check(entry.type == kind.rawValue && entry.title == "Synthetic item")
+            check(entry.tags == ["Work", "Personal"] && entry.isFavorite)
+            let existing = EntryDraft(entry: entry)
+            existing.selectKind(kind == .credential ? .secureNote : .credential)
+            check(existing.kind == kind && existing.entry().fields == entry.fields)
+        }
+        draft.clear()
+        check(draft.password.isEmpty && draft.token.isEmpty && draft.content.isEmpty && draft.customFields.isEmpty)
     }
 
     func testTagsFavoritesAndBulkEditsPersist() async throws {
@@ -262,7 +288,7 @@ private actor ControlledService: VaultService {
     private var waiter: CheckedContinuation<Void, Never>?
     init() throws {
         snapshot = try JSONDecoder().decode(Vault.self, from: Data("""
-        {"schemaVersion":1,"vaultID":"00000000000000000000000000000001","name":"Test","createdAt":0,"modifiedAt":0,"revision":0,"categories":[],"entries":[]}
+        {"vaultID":"00000000000000000000000000000001","name":"Test","createdAt":0,"modifiedAt":0,"revision":0,"entries":[]}
         """.utf8))
     }
     func create(at url: URL, passphrase: String, name: String, createdAt: Date, parameters: KDFParameters) async throws -> Vault { createCalls += 1; locked = false; return snapshot }

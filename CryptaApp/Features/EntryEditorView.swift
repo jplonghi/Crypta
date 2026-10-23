@@ -5,6 +5,7 @@ struct EntryEditorView: View {
     @Bindable var model: VaultViewModel
     @Bindable var draft: EntryDraft
     @State private var showText = false
+    @State private var titleFocus = UUID()
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -17,7 +18,18 @@ struct EntryEditorView: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    line("Title", text: $draft.title)
+                    if draft.isNew {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text("Item type").font(.callout.weight(.medium))
+                            Picker("Item type", selection: Binding(get: { draft.kind }, set: { draft.selectKind($0) })) {
+                                Text("Credential").tag(EntryKind.credential)
+                                Text("API key").tag(EntryKind.apiToken)
+                                Text("Note").tag(EntryKind.secureNote)
+                                Text("Custom").tag(EntryKind.customSecret)
+                            }.pickerStyle(.segmented).labelsHidden().accessibilityLabel("Item type")
+                        }
+                    }
+                    line("Title", text: $draft.title, focusRequest: titleFocus)
                     Button { draft.isFavorite.toggle() } label: {
                         Label(draft.isFavorite ? "Favorited" : "Add to Favorites", systemImage: draft.isFavorite ? "star.fill" : "star")
                     }.buttonStyle(.borderless)
@@ -100,10 +112,10 @@ struct EntryEditorView: View {
                 .disabled(draft.customFields.count >= 100)
         }
     }
-    private func line(_ label: String, text: Binding<String>, secret: Bool = false) -> some View {
+    private func line(_ label: String, text: Binding<String>, secret: Bool = false, focusRequest: UUID? = nil) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(label).font(.callout.weight(.medium))
-            PrivateTextInput(text: text, prompt: label, secret: secret).frame(height: 24)
+            PrivateTextInput(text: text, prompt: label, secret: secret, focusRequest: focusRequest).frame(height: 24)
         }
     }
     private func privateArea(_ label: String, text: Binding<String>) -> some View {

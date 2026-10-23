@@ -27,8 +27,10 @@ struct CryptaApp: App {
                 Button("Quit Crypta") { lifecycle.requestQuit() }.keyboardShortcut("q")
             }
             CommandGroup(replacing: .newItem) {
+                Button("New Item") { lifecycle.model.addEntry() }
+                    .keyboardShortcut("n").disabled(lifecycle.model.screen != .unlocked || !lifecycle.model.canNavigate)
                 Button("New Vault…") { lifecycle.model.beginCreation() }
-                    .keyboardShortcut("n").disabled(!lifecycle.model.canNavigate || lifecycle.model.vault != nil)
+                    .keyboardShortcut("n", modifiers: [.command, .shift]).disabled(!lifecycle.model.canNavigate || lifecycle.model.vault != nil)
                 Button("Open Vault…") { Task { await lifecycle.model.chooseOpenVault() } }
                     .keyboardShortcut("o").disabled(!lifecycle.model.canNavigate || lifecycle.model.vault != nil)
                 Button("Close Vault") { lifecycle.model.lockImmediately(close: true) }
@@ -43,11 +45,6 @@ struct CryptaApp: App {
                     .disabled(lifecycle.model.screen != .unlocked || !lifecycle.model.canNavigate)
                 Button("Edit Selected Entry") { lifecycle.model.editSelected() }
                     .keyboardShortcut("e").disabled(lifecycle.model.selectedEntry == nil || !lifecycle.model.canNavigate)
-                Divider()
-                ForEach(EntryKind.allCases) { kind in
-                    Button("New \(kind.title)") { lifecycle.model.addEntry(kind) }
-                        .disabled(lifecycle.model.screen != .unlocked || !lifecycle.model.canNavigate)
-                }
                 Divider()
                 Button("Save Changes") { lifecycle.model.saveDraft() }
                     .keyboardShortcut("s").disabled(!lifecycle.model.canSave)

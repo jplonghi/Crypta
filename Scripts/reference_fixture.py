@@ -43,8 +43,8 @@ def generate():
     vault_key = bytes(range(80, 112))
     core = struct.pack('<8sHHI16sHH12s', b'CRYPTA\r\n', 1, 48, 0, vault_id, 1, 1, bytes(12))
     slot = struct.pack('<HHIII16s24s8s', 1, 1, 3, 65536, 1, salt, wrap_nonce, bytes(8))
-    payload = json.dumps({'schemaVersion': 1, 'vaultID': vault_id.hex(), 'name': 'Public interoperability fixture',
-                          'createdAt': 0, 'modifiedAt': 0, 'revision': 0, 'categories': [], 'entries': []},
+    payload = json.dumps({'vaultID': vault_id.hex(), 'name': 'Public interoperability fixture',
+                          'createdAt': 0, 'modifiedAt': 0, 'revision': 0, 'entries': []},
                          sort_keys=True, separators=(',', ':')).encode()
     descriptor = payload_nonce + struct.pack('<Q', len(payload) + 16)
     kek = derive(PASSPHRASE, salt, 3, 65536)

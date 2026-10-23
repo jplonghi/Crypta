@@ -41,17 +41,6 @@ struct VaultBrowserView: View {
                 Text("CRYPTA").font(.headline).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(16)
             }
-            .safeAreaInset(edge: .bottom) {
-                VStack(spacing: 10) {
-                    Divider()
-                    Menu {
-                        ForEach(EntryKind.allCases) { kind in
-                            Button(kind.title, systemImage: kind.symbol) { model.addEntry(kind) }
-                        }
-                    } label: { Label("New Item", systemImage: "plus").frame(maxWidth: .infinity, alignment: .leading) }
-                        .menuStyle(.borderlessButton).disabled(!model.canNavigate)
-                }.padding(14).background(VaultStyle.sidebar)
-            }
         } content: {
             VStack(spacing: 0) {
                 HStack {
@@ -79,26 +68,35 @@ struct VaultBrowserView: View {
                                            systemImage: "tray", description: Text(model.vault?.entries.isEmpty == true ? "Add an item to this vault." : "Try different tags or search terms."))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    List(model.entries, id: \.id, selection: $model.selectedID) { entry in
-                        HStack(spacing: 10) {
-                            EntryEmblem(symbol: EntryKind(rawValue: entry.type)?.symbol ?? "key")
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(entry.title).font(.body.weight(.medium)).lineLimit(1)
-                                Text(EntryKind(rawValue: entry.type)?.title ?? "Entry").font(.caption).foregroundStyle(.secondary)
+                    ScrollViewReader { scroll in
+                        List(model.entries, id: \.id, selection: $model.selectedID) { entry in
+                            HStack(spacing: 10) {
+                                EntryEmblem(symbol: EntryKind(rawValue: entry.type)?.symbol ?? "key")
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(entry.title).font(.body.weight(.medium)).lineLimit(1)
+                                    Text(EntryKind(rawValue: entry.type)?.title ?? "Entry").font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: 0)
+                                Button { model.toggleFavorite(entry.id) } label: {
+                                    Image(systemName: entry.isFavorite ? "star.fill" : "star")
+                                }.buttonStyle(.borderless).foregroundStyle(VaultStyle.copper)
+                                    .accessibilityLabel(entry.isFavorite ? "Remove \(entry.title) from Favorites" : "Add \(entry.title) to Favorites")
+                                    .disabled(!model.canNavigate)
+                            }.accessibilityElement(children: .contain)
+                                .padding(.vertical, 7).tag(entry.id).id(entry.id)
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(model.selectedID == entry.id ? VaultStyle.selection : Color.clear)
+                        }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
+                        .onAppear {
+                            DispatchQueue.main.async {
+                                if let selectedID = model.selectedID { scroll.scrollTo(selectedID, anchor: .center) }
                             }
-                            Spacer(minLength: 0)
-                            Button { model.toggleFavorite(entry.id) } label: {
-                                Image(systemName: entry.isFavorite ? "star.fill" : "star")
-                            }.buttonStyle(.borderless).foregroundStyle(VaultStyle.copper)
-                                .accessibilityLabel(entry.isFavorite ? "Remove \(entry.title) from Favorites" : "Add \(entry.title) to Favorites")
-                                .disabled(!model.canNavigate)
-                        }.accessibilityElement(children: .contain)
-                            .padding(.vertical, 7).tag(entry.id)
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(model.selectedID == entry.id ? VaultStyle.selection : Color.clear)
+                        }
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
+                    // Native List caches clipped insertion heights; rebuilding its reader also refreshes scroll targets.
+                    .id(model.entries.map(\.id))
                 }
                 HStack { Text(model.entries.count == 1 ? "1 entry" : "\(model.entries.count) entries"); Spacer(); Text(model.editor == nil ? "Saved encrypted" : "Unsaved draft") }
                     .font(.caption).foregroundStyle(.secondary).padding(14)
@@ -117,17 +115,15 @@ struct VaultBrowserView: View {
         }
         .navigationTitle(model.vault?.name ?? "Crypta")
         .toolbar {
-            ToolbarItemGroup {
-                Menu {
-                    ForEach(EntryKind.allCases) { kind in
-                        Button(kind.title, systemImage: kind.symbol) { model.addEntry(kind) }
-                    }
-                } label: { Label("Add entry", systemImage: "plus") }
-                .disabled(!model.canNavigate).help("Add entry")
-                Button("Edit", systemImage: "pencil") { model.editSelected() }
-                    .disabled(!model.canNavigate || model.selectedEntry == nil)
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button("New Item", systemImage: "plus") { model.addEntry() }
+                    .labelStyle(.titleAndIcon).disabled(!model.canNavigate).help("New Item (⌘N)")
+                Button("Edit", systemImage: "square.and.pencil") { model.editSelected() }
+                    .labelStyle(.titleAndIcon).disabled(!model.canNavigate || model.selectedEntry == nil)
+                    .help("Edit Selected Item (⌘E)")
                 Button("Delete", systemImage: "trash") { confirmingDelete = true }
-                    .disabled(!model.canNavigate || model.selectedEntry == nil)
+                    .labelStyle(.titleAndIcon).disabled(!model.canNavigate || model.selectedEntry == nil)
+                    .help("Delete Selected Item")
                 Button { model.requestLock() } label: {
                     Label("Lock Vault", systemImage: "lock").labelStyle(.titleAndIcon)
                 }.help("Lock Vault (⇧⌘L)")

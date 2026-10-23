@@ -15,7 +15,7 @@ Crypta protects the contents and metadata of a locked vault against disclosure f
 - Saves use ciphertext-only staging, atomic replacement, writer locks, and file fingerprints. Ambiguous post-rename failures require locking and reopening.
 - The app uses App Sandbox with user-selected read/write access and no network entitlement. It has no telemetry or crash-reporting service.
 
-The [vault format](VAULT_FORMAT.md) defines the cryptographic composition, limits, migration, and persistence contract. The pinned Swift package vendors a native libsodium archive: version pins and hashes identify that artifact but do not prove reproducible source-to-binary provenance.
+The [vault format](VAULT_FORMAT.md) defines the cryptographic composition, limits, payload structure, and persistence contract. The pinned Swift package vendors a native libsodium archive: version pins and hashes identify that artifact but do not prove reproducible source-to-binary provenance.
 
 ## Threats and limits
 
@@ -47,7 +47,7 @@ Work on one local copy at a time and close it before transfer. Keep encrypted ba
 
 There is no reset or recovery backdoor. Losing the passphrase or every good file copy loses the vault. Passphrase changes rewrap the existing vault key; old backups keep their old passphrase. An old file and old passphrase can therefore reveal the unchanged key. Compromise recovery requires a new vault key and rotation of exposed service credentials. Deleting old copies does not prove secure erasure.
 
-Readers accept payload schemas 1 and 2. Saving migrated content writes schema 2, which older builds reject. Large legacy category expansion can exceed the 16 MiB save limit even when the old vault remains readable; reduce the expanded content before saving. See [migration details](VAULT_FORMAT.md#reading-schema-1).
+Crypta is an unshipped personal POC with one current payload structure and no schema versions or migrations. Compatibility with earlier development vaults is not maintained; recreate synthetic vaults when the payload structure changes. See the [current payload contract](VAULT_FORMAT.md#encrypted-payload).
 
 ## Before a production release
 

@@ -16,6 +16,8 @@ See `THIRD_PARTY_NOTICES.md` for the upstream ISC license.
 PyCryptodome's XChaCha20-Poly1305 implementation, independently of libsodium.
 The exact Python environment is pinned in `Scripts/reference-requirements.txt`.
 All keys, nonces, salts and the passphrase are public synthetic constants. The fixture
-is deliberately deterministic for compatibility testing and provides no confidentiality.
+is deliberately deterministic for interoperability testing and provides no confidentiality.
+It uses the current unversioned payload structure and is regenerated when that structure
+changes. The `v1` filename refers to the binary envelope, not a payload schema version.
 
 Public fixture passphrase: `public fixture passphrase 🗝️ with spaces`.

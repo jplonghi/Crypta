@@ -116,7 +116,6 @@ enum JSONValidator {
         }
         private func arrayLimit(_ path: [String]) -> Int {
             guard payloadSchema else { return 10_000 }
-            if path == ["categories"] { return 1000 }
             if path == ["entries", "*", "tags"] { return VaultTags.maximumCount }
             if path == ["entries", "*", "fields", "customFields"] { return 100 }
             return 10_000

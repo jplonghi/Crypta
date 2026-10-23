@@ -34,21 +34,15 @@ extension KeyedDecodingContainer where Key == FieldKey {
         }
         return id
     }
-    func optionalUUID(_ name: String) throws -> UUID? {
-        try decodeNil(forKey: FieldKey(name)) ? nil : uuid(name)
-    }
 }
 
 extension KeyedEncodingContainer where Key == FieldKey {
     mutating func put<T: Encodable>(_ name: String, _ value: T) throws {
         try encode(value, forKey: FieldKey(name))
     }
-    // Explicit null is part of schema 1, not an omitted key.
+    // Nullable fields require explicit null, not an omitted key.
     mutating func putOptional<T: Encodable>(_ name: String, _ value: T?) throws {
         if let value { try put(name, value) } else { try encodeNil(forKey: FieldKey(name)) }
     }
     mutating func putUUID(_ name: String, _ value: UUID) throws { try put(name, value.uuidString.lowercased()) }
-    mutating func putOptionalUUID(_ name: String, _ value: UUID?) throws {
-        try putOptional(name, value?.uuidString.lowercased())
-    }
 }

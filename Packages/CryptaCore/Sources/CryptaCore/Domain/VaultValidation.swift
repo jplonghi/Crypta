@@ -12,7 +12,7 @@ enum VaultValidation {
         return Int64(milliseconds.rounded(.down))
     }
 
-    static func validate(_ vault: Vault, expectedID: VaultID, legacy: Bool = false) throws {
+    static func validate(_ vault: Vault, expectedID: VaultID) throws {
         guard vault.vaultID == expectedID else { throw VaultError.invalidPayload }
         try date(vault.createdAt); try date(vault.modifiedAt)
         guard vault.createdAt <= vault.modifiedAt else { throw VaultError.invalidPayload }
@@ -27,15 +27,13 @@ enum VaultValidation {
             try date(entry.createdAt); try date(entry.modifiedAt)
             guard entry.createdAt <= entry.modifiedAt,
                   !entry.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw VaultError.invalidPayload }
-            guard entry.tags.count <= (legacy ? 100 : VaultTags.maximumCount) else { throw VaultError.resourceLimit }
+            guard entry.tags.count <= VaultTags.maximumCount else { throw VaultError.resourceLimit }
             try budget.check(entry.title)
             var tagKeys = Set<String>()
             for tag in entry.tags {
                 try budget.check(tag)
-                if !legacy {
-                    guard !VaultTags.key(tag).isEmpty, tag == tag.trimmingCharacters(in: .whitespacesAndNewlines),
-                          tagKeys.insert(VaultTags.key(tag)).inserted else { throw VaultError.invalidPayload }
-                }
+                guard !VaultTags.key(tag).isEmpty, tag == tag.trimmingCharacters(in: .whitespacesAndNewlines),
+                      tagKeys.insert(VaultTags.key(tag)).inserted else { throw VaultError.invalidPayload }
             }
             switch entry.fields {
             case .credential(let value):
