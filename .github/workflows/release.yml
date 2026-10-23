@@ -1,0 +1,62 @@
+name: Package release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Verify build environment
+        run: |
+          test "$(uname -m)" = arm64
+          xcodebuild -version
+          swift --version
+      - name: Test vault engine
+        run: swift test --force-resolved-versions --package-path Packages/CryptaCore
+      - name: Test desktop presentation
+        run: swift test --force-resolved-versions
+      - name: Package app and checksums
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: bash Scripts/package-release.sh "$RELEASE_TAG"
+      - name: Prepare release notes
+        run: |
+          cat > build/release-notes.md <<'NOTES'
+          Download **Crypta-macOS-arm64.dmg** for an Apple Silicon Mac running macOS 14 or later.
+          Open the DMG, drag Crypta.app onto Applications, eject the disk image, and open Crypta from Applications. Quit any existing copy before replacing it. The ZIP contains the same app; extract it and move Crypta.app to Applications.
+
+          **Personal POC:** Crypta has not had an independent security audit. Use synthetic data while evaluating it. Development updates may require recreating older test vaults.
+
+          This build is ad-hoc signed and **not notarized by Apple**. If macOS blocks the first launch and you trust this download, follow [Apple's Open Anyway instructions](https://support.apple.com/en-us/102445).
+
+          Homebrew: `brew install --cask jplonghi/tap/crypta`. To update, quit Crypta, run `brew update`, then `brew upgrade --cask jplonghi/tap/crypta`. The tap checks for published releases every six hours, so availability may lag the direct download.
+
+          SHA256SUMS.txt contains checksums for both downloads. The automatically generated source-code archives are for developers.
+          NOTES
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            dist/Crypta-macOS-arm64.dmg dist/Crypta-macOS-arm64.zip dist/SHA256SUMS.txt \
+            --verify-tag --draft --title "Crypta $RELEASE_TAG" --notes-file build/release-notes.md
