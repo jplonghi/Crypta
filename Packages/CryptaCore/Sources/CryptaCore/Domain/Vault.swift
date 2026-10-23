@@ -36,13 +36,9 @@ public struct VaultEntry: Codable, Identifiable, Equatable, Sendable {
         self.tags = tags; self.isFavorite = isFavorite; self.fields = fields
     }
     public init(from decoder: Decoder) throws {
-        let f = try strictFields(decoder, "id", "type", "typeVersion", "title", "createdAt", "modifiedAt", "tags", "isFavorite", "fields")
-        try self.init(fields: f, isFavorite: f.value("isFavorite"))
-    }
-    init(fields f: Fields, isFavorite: Bool) throws {
-        guard try f.value("typeVersion", as: Int.self) == 1 else { throw VaultError.unsupportedPayload }
+        let f = try strictFields(decoder, "id", "type", "title", "createdAt", "modifiedAt", "tags", "isFavorite", "fields")
         id = try f.uuid("id"); title = try f.value("title"); createdAt = try f.value("createdAt")
-        modifiedAt = try f.value("modifiedAt"); tags = try f.value("tags"); self.isFavorite = isFavorite
+        modifiedAt = try f.value("modifiedAt"); tags = try f.value("tags"); isFavorite = try f.value("isFavorite")
         switch try f.value("type", as: String.self) {
         case "credential": fields = .credential(try f.value("fields"))
         case "apiToken": fields = .apiToken(try f.value("fields"))
@@ -53,7 +49,7 @@ public struct VaultEntry: Codable, Identifiable, Equatable, Sendable {
     }
     public func encode(to encoder: Encoder) throws {
         var f = encoder.container(keyedBy: FieldKey.self)
-        try f.putUUID("id", id); try f.put("type", type); try f.put("typeVersion", 1); try f.put("title", title)
+        try f.putUUID("id", id); try f.put("type", type); try f.put("title", title)
         try f.put("createdAt", createdAt); try f.put("modifiedAt", modifiedAt); try f.put("tags", tags)
         try f.put("isFavorite", isFavorite)
         switch fields {
@@ -84,65 +80,17 @@ public struct Vault: Codable, Equatable, Sendable {
         self.modifiedAt = modifiedAt; revision += 1
     }
     public init(from decoder: Decoder) throws {
-        let version = try decoder.container(keyedBy: FieldKey.self).value("schemaVersion", as: Int.self)
-        let f: Fields
-        switch version {
-        case 1: f = try strictFields(decoder, "schemaVersion", "vaultID", "name", "createdAt", "modifiedAt", "revision", "categories", "entries")
-        case 2: f = try strictFields(decoder, "schemaVersion", "vaultID", "name", "createdAt", "modifiedAt", "revision", "entries")
-        default: throw VaultError.unsupportedPayload
-        }
+        let f = try strictFields(decoder, "vaultID", "name", "createdAt", "modifiedAt", "revision", "entries")
         vaultID = try f.value("vaultID"); name = try f.value("name"); createdAt = try f.value("createdAt")
         modifiedAt = try f.value("modifiedAt"); revision = try f.value("revision")
-        if version == 1 {
-            let legacy: [LegacyEntry] = try f.value("entries")
-            let categories: [LegacyCategory] = try f.value("categories")
-            guard categories.count <= 1000 else { throw VaultError.resourceLimit }
-            var names: [UUID: String] = [:]
-            for category in categories {
-                guard names[category.id] == nil else { throw VaultError.invalidPayload }
-                guard category.name.utf8.count <= 4096 else { throw VaultError.resourceLimit }
-                names[category.id] = category.name
-            }
-            entries = legacy.map(\.entry)
-            // Validate before expansion so large legacy categories remain readable even above the new save-size limit.
-            try VaultValidation.validate(self, expectedID: vaultID, legacy: true)
-            for index in entries.indices {
-                if let id = legacy[index].categoryID {
-                    guard let name = names[id] else { throw VaultError.invalidPayload }
-                    entries[index].tags.append(name)
-                }
-                entries[index].tags = VaultTags.unique(entries[index].tags)
-            }
-        } else {
-            entries = try f.value("entries")
-            try VaultValidation.validate(self, expectedID: vaultID)
-        }
+        entries = try f.value("entries")
+        try VaultValidation.validate(self, expectedID: vaultID)
     }
 
     public func encode(to encoder: Encoder) throws {
         var f = encoder.container(keyedBy: FieldKey.self)
-        try f.put("schemaVersion", 2); try f.put("vaultID", vaultID); try f.put("name", name)
+        try f.put("vaultID", vaultID); try f.put("name", name)
         try f.put("createdAt", createdAt); try f.put("modifiedAt", modifiedAt); try f.put("revision", revision)
         try f.put("entries", entries)
-    }
-}
-
-// Read-only schema-1 adapters. Categories never enter the current model or encoded payload.
-private struct LegacyCategory: Decodable {
-    let id: UUID
-    let name: String
-    init(from decoder: Decoder) throws {
-        let f = try strictFields(decoder, "id", "name")
-        id = try f.uuid("id"); name = try f.value("name")
-    }
-}
-
-private struct LegacyEntry: Decodable {
-    let entry: VaultEntry
-    let categoryID: UUID?
-    init(from decoder: Decoder) throws {
-        let f = try strictFields(decoder, "id", "type", "typeVersion", "title", "createdAt", "modifiedAt", "tags", "categoryID", "fields")
-        entry = try VaultEntry(fields: f, isFavorite: false)
-        categoryID = try f.optionalUUID("categoryID")
     }
 }

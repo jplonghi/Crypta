@@ -5,7 +5,7 @@ import CryptaCore
 @MainActor @Observable
 public final class EntryDraft: Identifiable {
     public let id: UUID
-    public let kind: EntryKind
+    public private(set) var kind: EntryKind
     let createdAt: Int64
     private let previousModifiedAt: Int64
     public var title = ""
@@ -44,6 +44,11 @@ public final class EntryDraft: Identifiable {
         case .secureNote(let value): content = value.content
         case .customSecret(let value): customFields = value.customFields
         }
+    }
+
+    public func selectKind(_ kind: EntryKind) {
+        guard isNew else { return }
+        self.kind = kind
     }
 
     public func entry(now: Date = Date()) -> VaultEntry {

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Headless, single-vault engine. Blocking native operations execute on this actor, never the UI actor.
-/// Reads migrate schema-1 payloads; writes use schema 2. Unsupported data is never installed or saved.
+/// Reads and writes the current payload structure. Unsupported data is never installed or saved.
 public actor VaultEngine {
     private struct Session {
         let key: SecretBuffer

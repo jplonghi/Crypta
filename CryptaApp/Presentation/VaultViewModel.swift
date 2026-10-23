@@ -197,7 +197,7 @@ public final class VaultViewModel {
         }, success: { model, value in model.vault = value; model.screen = .unlocked })
     }
 
-    public func addEntry(_ kind: EntryKind) {
+    public func addEntry(_ kind: EntryKind = .credential) {
         guard vault != nil, canNavigate else { return }
         errorMessage = nil; editor = EntryDraft(kind: kind)
     }

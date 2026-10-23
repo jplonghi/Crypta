@@ -66,6 +66,12 @@ struct DomainTests {
         #expect(reopenedVault == saved)
         #expect(Array(reopenedVault.entries[0].tags[1].utf8) == Array("é".utf8))
         #expect(reopenedVault.entries[0].isFavorite)
+        let object = try jsonObject(saved)
+        #expect(Set(object.keys) == Set(["vaultID", "name", "createdAt", "modifiedAt", "revision", "entries"]))
+        let entries = try #require(object["entries"] as? [[String: Any]])
+        for entry in entries {
+            #expect(Set(entry.keys) == Set(["id", "type", "title", "createdAt", "modifiedAt", "tags", "isFavorite", "fields"]))
+        }
         let json = try VaultCodec.encode(saved, expectedID: saved.vaultID)
         #expect(json == (try VaultCodec.encode(saved, expectedID: saved.vaultID)))
         #expect(try VaultCodec.decode(json, expectedID: saved.vaultID) == saved)
@@ -103,14 +109,12 @@ struct DomainTests {
         await #expect(throws: VaultError.locked) { try await engine.save(vault: removed) }
     }
 
-    @Test func unknownSchemaTypesFieldsAndMissingKeys() throws {
+    @Test func unknownTypesFieldsAndMissingKeys() throws {
         let sample = try sampleVault()
         let baseline = try jsonObject(sample)
         var invalid = [[String: Any]]()
-        var root = baseline; root["schemaVersion"] = 3; invalid.append(root)
-        root = baseline; root["future"] = "do not discard"; invalid.append(root)
+        var root = baseline; root["future"] = "do not discard"; invalid.append(root)
         root = baseline; try editEntry(&root) { $0["type"] = "attachment" }; invalid.append(root)
-        root = baseline; try editEntry(&root) { $0["typeVersion"] = 2 }; invalid.append(root)
         root = baseline; try editEntry(&root) { $0["future"] = 1 }; invalid.append(root)
         root = baseline; try editEntry(&root) { var fields = $0["fields"] as? [String: Any] ?? [:]; fields["future"] = "value"; $0["fields"] = fields }; invalid.append(root)
         root = baseline
@@ -142,7 +146,7 @@ struct DomainTests {
         for kind in 0..<4 {
             var object = baseline
             switch kind {
-            case 0: object["schemaVersion"] = 3
+            case 0: object.removeValue(forKey: "name")
             case 1: object["vaultID"] = String(repeating: "f", count: 32)
             case 2: object["future"] = "retain me"
             default: try editEntry(&object) { $0["type"] = "attachment" }
@@ -198,7 +202,7 @@ struct DomainTests {
         let sample = try sampleVault()
         var invalid = [Vault]()
         var v = sample; v.name = String(repeating: "é", count: 2049); invalid.append(v)
-        v = sample; v.entries[0].tags = Array(repeating: "tag", count: 102); invalid.append(v)
+        v = sample; v.entries[0].tags = Array(repeating: "tag", count: VaultTags.maximumCount + 1); invalid.append(v)
         v = sample; v.entries = Array(repeating: v.entries[0], count: 10_001); invalid.append(v)
         v = sample; v.entries[2].fields = .secureNote(.init(content: String(repeating: "x", count: 1_048_577))); invalid.append(v)
         v = sample; v.entries[3].fields = .customSecret(.init(customFields: Array(repeating: .init(name: "field"), count: 101))); invalid.append(v)
@@ -209,102 +213,25 @@ struct DomainTests {
         let encoded = try VaultCodec.encode(maximum, expectedID: maximum.vaultID)
         #expect(try VaultCodec.decode(encoded, expectedID: maximum.vaultID) == maximum)
         // Wrong element types prove the scanner hits count limits BEFORE typed decoding begins.
-        let excessive = "{\"entries\":[{\"tags\":[" + Array(repeating: "true", count: 102).joined(separator: ",") + "]}]}"
+        let excessive = "{\"entries\":[{\"tags\":[" + Array(repeating: "true", count: VaultTags.maximumCount + 1).joined(separator: ",") + "]}]}"
         #expect(throws: VaultError.resourceLimit) { try VaultCodec.decode(Data(excessive.utf8), expectedID: sample.vaultID) }
-        let tooManyCategories = "{\"categories\":[" + Array(repeating: "false", count: 1001).joined(separator: ",") + "]}"
-        #expect(throws: VaultError.resourceLimit) { try VaultCodec.decode(Data(tooManyCategories.utf8), expectedID: sample.vaultID) }
-    }
-    private func legacyObject() throws -> [String: Any] {
-        var root = try jsonObject(sampleVault())
-        root["schemaVersion"] = 1
-        let categoryID = "11111111-1111-4111-8111-111111111111"
-        root["categories"] = [["id": categoryID, "name": "Work"],
-                              ["id": "22222222-2222-4222-8222-222222222222", "name": "Unused"]]
-        var entries = try #require(root["entries"] as? [[String: Any]])
-        for index in entries.indices {
-            entries[index].removeValue(forKey: "isFavorite")
-            entries[index]["categoryID"] = index == 0 ? categoryID as Any : NSNull()
-        }
-        entries[0]["tags"] = ["work", "WORK", "é", "e\u{301}"]
-        root["entries"] = entries
-        return root
+        let tooManyEntries = "{\"entries\":[" + Array(repeating: "false", count: 10_001).joined(separator: ",") + "]}"
+        #expect(throws: VaultError.resourceLimit) { try VaultCodec.decode(Data(tooManyEntries.utf8), expectedID: sample.vaultID) }
     }
 
-    @Test func legacyCategoriesMigrateAndSaveAtomically() async throws {
-        let directory = try TestDirectory(); defer { directory.remove() }
-        var root = try legacyObject()
-        // Preserve the old maximum plus a distinct category without dropping a label.
-        try editEntry(&root) { $0["tags"] = (0..<100).map { "tag-\($0)" } }
-        let original = try container(with: jsonBytes(root))
-        try original.write(to: directory.vault)
-        let failing = VaultEngine(store: .init(checkpoint: { if $0 == .beforeRename { throw VaultError.fileAccess } }))
-        try await failing.open(at: directory.vault, passphrase: testPassphrase)
-        let migrated = try await failing.readVault()
-        #expect(migrated.entries[0].tags.count == 101)
-        #expect(migrated.entries[0].tags.last == "Work")
-        #expect(migrated.entries.allSatisfy { !$0.isFavorite })
-        #expect(!migrated.entries.flatMap(\.tags).contains("Unused"))
-        #expect(try Data(contentsOf: directory.vault) == original)
-        await #expect(throws: VaultError.fileAccess) { try await failing.save(vault: migrated) }
-        #expect(try Data(contentsOf: directory.vault) == original)
-        await failing.lock()
-        let engine = VaultEngine()
-        try await engine.open(at: directory.vault, passphrase: testPassphrase)
-        var edited = try await engine.readVault(); edited.entries[0].isFavorite = true
-        let saved = try await engine.save(vault: edited)
-        let encoded = try jsonObject(saved)
-        #expect(encoded["schemaVersion"] as? Int == 2)
-        #expect(encoded["categories"] == nil)
-        #expect((encoded["entries"] as? [[String: Any]])?.first?["categoryID"] == nil)
-        let encrypted = try Data(contentsOf: directory.vault)
-        for text in ["Work", "tag-99", "isFavorite", "alice@example.com"] {
-            #expect(encrypted.range(of: Data(text.utf8)) == nil)
-        }
-        await engine.lock()
-        let reopened = VaultEngine()
-        try await reopened.open(at: directory.vault, passphrase: testPassphrase)
-        #expect(try await reopened.readVault() == saved)
-        #expect(saved.entries.map(\.fields) == migrated.entries.map(\.fields))
-        #expect(saved.entries.map(\.id) == migrated.entries.map(\.id))
-    }
-
-    @Test func migrationValidatesLegacyReferencesAndNormalizesTags() throws {
-        let baseline = try legacyObject()
-        let id = try sampleVault().vaultID
-        let migrated = try VaultCodec.decode(jsonBytes(baseline), expectedID: id)
-        #expect(migrated.entries[0].tags == ["work", "é"])
+    @Test func tagsNormalizeAndRespectCurrentLimit() throws {
         #expect(VaultTags.unique([" Work ", "WORK", "", "Personal", "personal"]) == ["Work", "Personal"])
+        #expect(VaultTags.unique(["é", "e\u{301}"]) == ["é"])
         #expect(VaultTags.key("Straße") == VaultTags.key("STRASSE"))
-        var root = baseline
-        try editEntry(&root) { $0["categoryID"] = UUID().uuidString.lowercased() }
-        #expect(throws: VaultError.invalidPayload) { try VaultCodec.decode(jsonBytes(root), expectedID: id) }
-        root = baseline
-        var categories = try #require(root["categories"] as? [[String: Any]])
-        categories.append(categories[0]); root["categories"] = categories
-        #expect(throws: VaultError.invalidPayload) { try VaultCodec.decode(jsonBytes(root), expectedID: id) }
-        root = baseline; categories.removeLast(); categories[0]["future"] = true; root["categories"] = categories
-        #expect(throws: VaultError.unsupportedPayload) { try VaultCodec.decode(jsonBytes(root), expectedID: id) }
-        root = baseline; try editEntry(&root) { $0.removeValue(forKey: "categoryID") }
-        #expect(throws: VaultError.invalidPayload) { try VaultCodec.decode(jsonBytes(root), expectedID: id) }
-        root = baseline; try editEntry(&root) { $0["tags"] = (0..<101).map { "tag-\($0)" } }
-        #expect(throws: VaultError.resourceLimit) { try VaultCodec.decode(jsonBytes(root), expectedID: id) }
-    }
-
-    @Test func largeLegacyCategoryExpansionStaysReadableButCannotExceedSaveLimit() throws {
-        var root = try legacyObject()
-        var categories = try #require(root["categories"] as? [[String: Any]])
-        categories[0]["name"] = String(repeating: "x", count: 4096)
-        root["categories"] = categories
-        var entry = try #require((root["entries"] as? [[String: Any]])?.first)
-        entry["tags"] = []
-        root["entries"] = (0..<4100).map { _ in
-            var copy = entry; copy["id"] = UUID().uuidString.lowercased(); return copy
-        }
-        let id = try sampleVault().vaultID
-        let migrated = try VaultCodec.decode(jsonBytes(root), expectedID: id)
-        #expect(migrated.entries.count == 4100)
-        #expect(migrated.entries.allSatisfy { $0.tags.first?.utf8.count == 4096 })
-        #expect(throws: VaultError.resourceLimit) { try VaultCodec.encode(migrated, expectedID: id) }
+        var vault = try sampleVault()
+        vault.entries[0].tags = (0..<VaultTags.maximumCount).map { "tag-\($0)" }
+        let encoded = try VaultCodec.encode(vault, expectedID: vault.vaultID)
+        #expect(try VaultCodec.decode(encoded, expectedID: vault.vaultID) == vault)
+        vault.entries[0].tags.append("one-too-many")
+        #expect(throws: VaultError.resourceLimit) { try VaultCodec.encode(vault, expectedID: vault.vaultID) }
+        var object = try jsonObject(sampleVault())
+        try editEntry(&object) { $0["tags"] = vault.entries[0].tags }
+        #expect(throws: VaultError.resourceLimit) { try VaultCodec.decode(jsonBytes(object), expectedID: vault.vaultID) }
     }
 
     @Test func revisionFailureIsTransactional() async throws {

@@ -215,7 +215,7 @@ private actor DelayedSecurityService: VaultService {
     private var rewrapFails = false
     init() throws {
         snapshot = try JSONDecoder().decode(Vault.self, from: Data("""
-        {"schemaVersion":1,"vaultID":"00000000000000000000000000000001","name":"Test","createdAt":0,"modifiedAt":0,"revision":0,"categories":[],"entries":[]}
+        {"vaultID":"00000000000000000000000000000001","name":"Test","createdAt":0,"modifiedAt":0,"revision":0,"entries":[]}
         """.utf8))
     }
     func create(at url: URL, passphrase: String, name: String, createdAt: Date, parameters: KDFParameters) async throws -> Vault { locked = false; return snapshot }

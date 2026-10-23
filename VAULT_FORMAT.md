@@ -1,6 +1,6 @@
 # .crypta file format v1
 
-Status: experimental v1 binary format; not frozen for release. Current writers use encrypted payload schema 2; readers also migrate schema 1. The binary format and cryptographic envelope are unchanged. Offsets are decimal bytes. Integers are unsigned little-endian. Serialize fields explicitly; never dump Swift/C structures or rely on native alignment. All random values are independent CSPRNG outputs. There is one key slot and one payload.
+Status: unshipped personal POC; not frozen for release. Readers and writers use one current encrypted payload structure without schema versions or migrations. Earlier development vaults need not remain readable. The binary format identifier describes the cryptographic envelope and is separate from the payload structure. Offsets are decimal bytes. Integers are unsigned little-endian. Serialize fields explicitly; never dump Swift/C structures or rely on native alignment. All random values are independent CSPRNG outputs. There is one key slot and one payload.
 
 ## Physical layout
 
@@ -12,7 +12,7 @@ Status: experimental v1 binary format; not frozen for release. Current writers u
 | 12 | 4 | Flags | 0 |
 | 16 | 16 | Vault ID | Random opaque bytes, not a device ID |
 | 32 | 2 | Payload AEAD ID | 1 = XChaCha20-Poly1305-IETF |
-| 34 | 2 | Payload encoding ID | 1 = UTF-8 JSON, schema version inside ciphertext |
+| 34 | 2 | Payload encoding ID | 1 = UTF-8 JSON |
 | 36 | 12 | Core reserved | All zero |
 | 48 | 2 | KDF ID | 1 = Argon2id v1.3 (0x13), no secret/AD input |
 | 50 | 2 | Wrap AEAD ID | 1 = XChaCha20-Poly1305-IETF |
@@ -52,7 +52,7 @@ These names describe libsodium AEAD calls; they are not new cryptographic algori
 
 Do not put the mutable key slot into payload AAD: that would require payload re-encryption on a passphrase change. Do not put the mutable payload descriptor into wrap AAD: that would require retaining/rederiving the KEK on each save. The split is deliberate. Both tags must verify before any content is exposed. A mixed envelope/payload from different vault keys fails; older valid components under the same unchanged vault key can still be replayed. This format provides integrity, not freshness, key revocation, or rollback protection.
 
-Normal save preserves the core, slot descriptor, and wrapped key, then creates a new payload nonce and ciphertext. Passphrase change preserves the core, payload descriptor, and payload ciphertext, then creates a fresh salt, KEK, wrap nonce, and wrapped key. A new-key migration requires re-encryption and a new vault ID. Atomic storage rewrites the complete file in all cases; avoiding cryptographic re-encryption does not avoid file I/O.
+Normal save preserves the core, slot descriptor, and wrapped key, then creates a new payload nonce and ciphertext. Passphrase change preserves the core, payload descriptor, and payload ciphertext, then creates a fresh salt, KEK, wrap nonce, and wrapped key. Replacing the vault key requires re-encryption and a new vault ID. Atomic storage rewrites the complete file in all cases; avoiding cryptographic re-encryption does not avoid file I/O.
 
 ## Parser and resource policy
 
@@ -66,11 +66,11 @@ Normal save preserves the core, slot descriptor, and wrapped key, then creates a
 
 Files exceeding resource policy are unsupported, not silently repaired. Structural/resource errors may be distinct from authentication errors because public-header information is already observable.
 
-## Encrypted payload schema 2
+## Encrypted payload
 
-Root fields: `schemaVersion: 2`, `vaultID` (32 lowercase hex digits matching the core), `name`, `createdAt`, `modifiedAt`, `revision`, and `entries`. There are no category or independent tag entities. All organization metadata remains inside the authenticated ciphertext.
+Root fields: `vaultID` (32 lowercase hex digits matching the core), `name`, `createdAt`, `modifiedAt`, `revision`, and `entries`. There are no category or independent tag entities. All organization metadata remains inside the authenticated ciphertext.
 
-Each entry has `id`, `type`, `typeVersion: 1`, `title`, `createdAt`, `modifiedAt`, `tags` (flat string array), `isFavorite` (required Boolean), and `fields`:
+Each entry has `id`, `type`, `title`, `createdAt`, `modifiedAt`, `tags` (flat string array), `isFavorite` (required Boolean), and `fields`:
 
 | Type | Fields |
 | --- | --- |
@@ -83,13 +83,7 @@ Tags are nonempty trimmed strings, unique within an entry under locale-independe
 
 Dates are integer UTC Unix milliseconds, 0 through 253402300799999, with creation no later than modification. UUIDs use canonical lowercase hyphenated text. Entry IDs are unique across the vault; custom field IDs are unique per entry. Titles must contain non-whitespace text. Numeric fields require integer JSON literals. Revisions are bounded to 2^53−1 and increment only on successful payload saves; stale snapshots and exhausted counters fail. Passphrase-only rewrapping preserves payload bytes and revision. Entry creation dates are immutable; modification dates cannot move backward.
 
-Limits: 16 MiB encoded payload; nesting depth 16; 10,000 entries; 101 tags per entry (room for schema 1's 100 tags plus a category); 100 custom fields per entry; 1 MiB UTF-8 per secret/note/custom value; 4 KiB for other strings. Bounds are checked before typed decoding and before encoding. Unknown schema/type versions, types, fields, and token environments are rejected rather than dropped. URLs remain inert strings.
-
-### Reading schema 1
-
-Schema 1 requires root `categories: [{id, name}]` and per-entry `categoryID` (UUID or explicit null), and has no `isFavorite` field. The reader validates its strict field sets, unique category IDs, references, original 100-tag and 1,000-category limits, timestamps, and typed fields. Assigned category names are appended to each entry's tags; case-insensitive duplicates are merged, whitespace is trimmed, and empty labels are omitted. Unassigned categories disappear. IDs, timestamps, revision, and secret fields remain unchanged; `isFavorite` defaults to false.
-
-Migration occurs in memory only after authentication. Opening and closing a legacy vault does not rewrite it. The next successful payload save writes schema 2 through the existing atomic encrypted transaction. A pre-rename failure leaves the original file intact. Passphrase-only rewrapping does not upgrade the payload. Older schema-1-only builds reject schema 2; there is no downgrade operation. The immutable independently generated schema-1 fixture remains in the test suite.
+Limits: 16 MiB encoded payload; nesting depth 16; 10,000 entries; 100 tags per entry; 100 custom fields per entry; 1 MiB UTF-8 per secret/note/custom value; 4 KiB for other strings. Bounds are checked before typed decoding and before encoding. Unknown types, fields, and token environments are rejected rather than dropped. URLs remain inert strings.
 
 ## Persistence and conflict contract
 

@@ -2,8 +2,7 @@ import Foundation
 
 /// Tag identity is locale-independent and case-insensitive; display spelling stays user-controlled.
 public enum VaultTags {
-    // Schema 1 allowed 100 tags plus a category. Migration must preserve all 101 labels.
-    public static let maximumCount = 101
+    public static let maximumCount = 100
 
     public static func key(_ tag: String) -> String {
         tag.trimmingCharacters(in: .whitespacesAndNewlines)

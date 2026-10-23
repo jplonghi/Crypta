@@ -2,7 +2,38 @@
 
 A native macOS vault for credentials, API tokens, secure notes, and custom secrets. Your encrypted `.crypta` file and master passphrase are all you need to open it on a compatible Mac. No account, server, or device-bound key.
 
-**Experimental:** Crypta has not had an independent security audit or a signed, notarized release. Use synthetic data while evaluating it. Read the [security policy and limitations](SECURITY.md).
+**Personal POC:** Crypta is still in development and has not shipped to customers. It has not had an independent security audit. Downloads are ad-hoc signed and not notarized by Apple. Use synthetic data while evaluating it. Read the [security policy and limitations](SECURITY.md).
+
+## Install
+
+**Apple Silicon Mac · macOS 14 Sonoma or later**
+
+[Download DMG](https://github.com/jplonghi/Crypta/releases/latest/download/Crypta-macOS-arm64.dmg) · [Download ZIP](https://github.com/jplonghi/Crypta/releases/latest/download/Crypta-macOS-arm64.zip) · [Release notes and checksums](https://github.com/jplonghi/Crypta/releases/latest)
+
+Open the DMG, drag **Crypta.app** into **Applications**, then eject the disk image and open Crypta. For the ZIP, extract it and move **Crypta.app** into **Applications**. Developer tools are not needed to run the app.
+
+Or install with [Homebrew](https://brew.sh):
+
+```sh
+brew install --cask jplonghi/tap/crypta
+```
+
+If Crypta is already in Applications, quit it and remove only the old `Crypta.app` before installing with Homebrew. Keep your `.crypta` vault files.
+
+### First launch
+
+Crypta is not notarized by Apple, so macOS may block its first launch. If you trust this download, try opening Crypta from Applications, then use **System Settings → Privacy & Security → Open Anyway**. See [Apple's instructions](https://support.apple.com/en-us/102445).
+
+### Updates
+
+Quit Crypta before replacing it with a newer download. For Homebrew installs:
+
+```sh
+brew update
+brew upgrade --cask jplonghi/tap/crypta
+```
+
+The [Homebrew tap](https://github.com/jplonghi/homebrew-tap) checks for published releases every six hours. Crypta does not update itself. Back up your vault before updating; development changes may require recreating older test vaults.
 
 ## Features
 
@@ -33,7 +64,7 @@ Save commits edits; Cancel discards them. Automatic lock discards unsaved drafts
 
 Use ⌘F to search, ⌘E to edit, ⌘S to save, and ⇧⌘L to lock. **Vault → Change Master Passphrase** changes the current file's passphrase. Older backups retain their old passphrase. There is no passphrase reset or recovery service.
 
-Legacy schema-1 vaults are read with categories converted into tags. The next successful content save writes schema 2, which older builds cannot read. Keep an encrypted backup before upgrading. See the [vault format and compatibility contract](VAULT_FORMAT.md).
+Development uses one current payload structure without schema versions or migrations. Changes may require recreating synthetic vaults from earlier builds. See the [current vault format](VAULT_FORMAT.md).
 
 ## Contributing
 
